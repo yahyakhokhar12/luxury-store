@@ -39,10 +39,13 @@ export async function PUT(req: Request) {
 
   try {
     await connectDB();
-    const body = await req.json();
-    const rawItems = Array.isArray(body.items) ? body.items : [];
+    const body: unknown = await req.json();
+    const bodyObj =
+      body && typeof body === "object" ? (body as Record<string, unknown>) : {};
+
+    const rawItems = Array.isArray(bodyObj.items) ? bodyObj.items : [];
     const items = rawItems
-      .map((item) => (typeof item === "string" ? item.trim() : ""))
+      .map((item: unknown) => (typeof item === "string" ? item.trim() : ""))
       .filter(Boolean)
       .slice(0, 12);
 
@@ -50,12 +53,14 @@ export async function PUT(req: Request) {
       return NextResponse.json({ error: "At least one announcement item is required" }, { status: 400 });
     }
 
-    const ctaLabel = typeof body.ctaLabel === "string" && body.ctaLabel.trim()
-      ? body.ctaLabel.trim()
-      : "Shop Now";
-    const ctaHref = typeof body.ctaHref === "string" && body.ctaHref.trim()
-      ? body.ctaHref.trim()
-      : "/products";
+    const ctaLabel =
+      typeof bodyObj.ctaLabel === "string" && bodyObj.ctaLabel.trim()
+        ? bodyObj.ctaLabel.trim()
+        : "Shop Now";
+    const ctaHref =
+      typeof bodyObj.ctaHref === "string" && bodyObj.ctaHref.trim()
+        ? bodyObj.ctaHref.trim()
+        : "/products";
 
     await Announcement.findOneAndUpdate(
       { key: "main" },
