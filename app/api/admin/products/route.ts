@@ -22,7 +22,7 @@ export async function POST(req: Request) {
 
   try {
     await connectDB();
-    const { name, price, category, image, images, newArrival } = await req.json();
+    const { name, price, category, image, images, newArrival, description, inStock } = await req.json();
     const normalizedImages = Array.isArray(images)
       ? images.filter((item: unknown): item is string => typeof item === "string" && item.trim().length > 0)
       : [];
@@ -35,6 +35,8 @@ export async function POST(req: Request) {
       name,
       price: Number(price),
       category,
+      description: typeof description === "string" ? description.trim() : "",
+      inStock: inStock !== undefined ? Boolean(inStock) : true,
       image: primaryImage,
       images: normalizedImages.length > 0 ? normalizedImages : [primaryImage],
       newArrival: Boolean(newArrival),

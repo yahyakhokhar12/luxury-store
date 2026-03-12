@@ -2,9 +2,9 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useAuth } from "./AuthContext";
-import { useCart } from "./CartContext";
-import { useWishlist } from "./WishlistContext";
+import { useAuth } from "@/components/AuthContext";
+import { useCart } from "@/components/CartContext";
+import { useWishlist } from "@/components/WishlistContext";
 import ThemeToggle from "./ThemeToggle";
 
 export default function Navbar() {

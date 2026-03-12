@@ -23,13 +23,26 @@ const CartContext = createContext<CartContextType | undefined>(undefined);
 export function CartProvider({ children }: { children: React.ReactNode }) {
   const [cart, setCart] = useState<CartItem[]>([]);
 
+  const isValidCartItem = (item: unknown): item is CartItem => {
+    if (!item || typeof item !== "object") return false;
+    const candidate = item as CartItem;
+    return (
+      typeof candidate.id === "number" &&
+      typeof candidate.name === "string" &&
+      typeof candidate.price === "number" &&
+      typeof candidate.image === "string" &&
+      typeof candidate.quantity === "number"
+    );
+  };
+
   useEffect(() => {
     const raw = localStorage.getItem("luxora-cart");
     if (!raw) return;
     try {
-      const parsed = JSON.parse(raw) as CartItem[];
+      const parsed = JSON.parse(raw) as unknown[];
+      const cleaned = Array.isArray(parsed) ? parsed.filter(isValidCartItem) : [];
       // eslint-disable-next-line react-hooks/set-state-in-effect
-      setCart(parsed);
+      setCart(cleaned);
     } catch {
       // ignore invalid storage data
     }

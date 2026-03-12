@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { FormEvent, useEffect, useState } from "react";
 import { useAuth } from "@/components/AuthContext";
@@ -8,8 +8,10 @@ type AdminProduct = {
   name: string;
   price: number;
   category: string;
+  description?: string;
   image: string;
   images?: string[];
+  inStock?: boolean;
 };
 
 type AdminCollection = {
@@ -51,7 +53,15 @@ type AnnouncementSettings = {
   ctaHref: string;
 };
 
-const initialProduct = { name: "", price: "", category: "", image: "", images: [] as string[] };
+const initialProduct = {
+  name: "",
+  price: "",
+  category: "",
+  description: "",
+  image: "",
+  images: [] as string[],
+  inStock: true,
+};
 const initialCollection = { title: "", caption: "", image: "" };
 const initialAnnouncement = {
   itemsText:
@@ -68,6 +78,7 @@ export default function AdminPage() {
   const [orders, setOrders] = useState<AdminOrder[]>([]);
   const [error, setError] = useState("");
   const [productForm, setProductForm] = useState(initialProduct);
+  const [productImageUrls, setProductImageUrls] = useState("");
   const [collectionForm, setCollectionForm] = useState(initialCollection);
   const [announcementForm, setAnnouncementForm] = useState(initialAnnouncement);
   const [saving, setSaving] = useState(false);
@@ -75,6 +86,11 @@ export default function AdminPage() {
   const [savingAnnouncement, setSavingAnnouncement] = useState(false);
   const [uploadingImage, setUploadingImage] = useState(false);
   const [uploadingCollectionImage, setUploadingCollectionImage] = useState(false);
+  const [editProduct, setEditProduct] = useState<AdminProduct | null>(null);
+  const [editForm, setEditForm] = useState(initialProduct);
+  const [editImageUrls, setEditImageUrls] = useState("");
+  const [savingEdit, setSavingEdit] = useState(false);
+  const [uploadingEditImage, setUploadingEditImage] = useState(false);
 
   const loadData = async () => {
     try {
@@ -117,6 +133,36 @@ export default function AdminPage() {
     }
   }, [loading, user]);
 
+  const normalizeImages = (items: string[]) =>
+    items.map((item) => item.trim()).filter((item) => item.length > 0);
+
+  const mergeImages = (current: string[], incoming: string[]) =>
+    Array.from(new Set([...normalizeImages(current), ...normalizeImages(incoming)]));
+
+  const parseImageUrls = (value: string) =>
+    value
+      .split(/[\n,]+/)
+      .map((item) => item.trim())
+      .filter(Boolean);
+
+  const uploadImages = async (files: FileList | null) => {
+    if (!files || files.length === 0) return [] as string[];
+    const uploadedUrls: string[] = [];
+    for (const file of Array.from(files)) {
+      const body = new FormData();
+      body.append("file", file);
+
+      const res = await fetch("/api/admin/upload", {
+        method: "POST",
+        body,
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Failed to upload image");
+      uploadedUrls.push(data.url as string);
+    }
+    return uploadedUrls;
+  };
+
   const addProduct = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setSaving(true);
@@ -133,8 +179,10 @@ export default function AdminPage() {
           name: productForm.name,
           price: Number(productForm.price),
           category: productForm.category,
+          description: productForm.description,
           image: productForm.image,
           images: productForm.images,
+          inStock: productForm.inStock,
         }),
       });
       const data = await res.json();
@@ -153,31 +201,46 @@ export default function AdminPage() {
     setUploadingImage(true);
     setError("");
     try {
-      const uploadedUrls: string[] = [];
-
-      for (const file of Array.from(files)) {
-        const body = new FormData();
-        body.append("file", file);
-
-        const res = await fetch("/api/admin/upload", {
-          method: "POST",
-          body,
-        });
-        const data = await res.json();
-        if (!res.ok) throw new Error(data.error || "Failed to upload image");
-        uploadedUrls.push(data.url as string);
-      }
-
-      setProductForm((prev) => ({
-        ...prev,
-        image: uploadedUrls[0] || prev.image,
-        images: uploadedUrls,
-      }));
+      const uploadedUrls = await uploadImages(files);
+      if (uploadedUrls.length === 0) return;
+      setProductForm((prev) => {
+        const merged = mergeImages(prev.images, uploadedUrls);
+        return {
+          ...prev,
+          image: merged[0] || "",
+          images: merged,
+        };
+      });
     } catch (err) {
       setError(err instanceof Error ? err.message : "Image upload failed");
     } finally {
       setUploadingImage(false);
     }
+  };
+
+  const addProductImageUrls = () => {
+    const urls = parseImageUrls(productImageUrls);
+    if (urls.length === 0) return;
+    setProductForm((prev) => {
+      const merged = mergeImages(prev.images, urls);
+      return {
+        ...prev,
+        image: merged[0] || "",
+        images: merged,
+      };
+    });
+    setProductImageUrls("");
+  };
+
+  const removeProductImage = (index: number) => {
+    setProductForm((prev) => {
+      const next = prev.images.filter((_, i) => i !== index);
+      return {
+        ...prev,
+        image: next[0] || "",
+        images: next,
+      };
+    });
   };
 
   const deleteProduct = async (id: string) => {
@@ -188,6 +251,112 @@ export default function AdminPage() {
       await loadData();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Delete failed");
+    }
+  };
+
+  const openEditProduct = (product: AdminProduct) => {
+    const existingImages =
+      Array.isArray(product.images) && product.images.length > 0
+        ? product.images
+        : product.image
+          ? [product.image]
+          : [];
+    setEditForm({
+      name: product.name || "",
+      price: String(product.price ?? ""),
+      category: product.category || "",
+      description: product.description || "",
+      image: existingImages[0] || "",
+      images: existingImages,
+      inStock: product.inStock ?? true,
+    });
+    setEditImageUrls("");
+    setEditProduct(product);
+  };
+
+  const closeEditProduct = () => {
+    setEditProduct(null);
+  };
+
+  const onEditImageSelect = async (files: FileList | null) => {
+    if (!files || files.length === 0) return;
+    setUploadingEditImage(true);
+    setError("");
+    try {
+      const uploadedUrls = await uploadImages(files);
+      if (uploadedUrls.length === 0) return;
+      setEditForm((prev) => {
+        const merged = mergeImages(prev.images, uploadedUrls);
+        return {
+          ...prev,
+          image: merged[0] || "",
+          images: merged,
+        };
+      });
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Image upload failed");
+    } finally {
+      setUploadingEditImage(false);
+    }
+  };
+
+  const addEditImageUrls = () => {
+    const urls = parseImageUrls(editImageUrls);
+    if (urls.length === 0) return;
+    setEditForm((prev) => {
+      const merged = mergeImages(prev.images, urls);
+      return {
+        ...prev,
+        image: merged[0] || "",
+        images: merged,
+      };
+    });
+    setEditImageUrls("");
+  };
+
+  const removeEditImage = (index: number) => {
+    setEditForm((prev) => {
+      const next = prev.images.filter((_, i) => i !== index);
+      return {
+        ...prev,
+        image: next[0] || "",
+        images: next,
+      };
+    });
+  };
+
+  const saveEditProduct = async (e: FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    if (!editProduct) return;
+    const images = editForm.images.length > 0 ? editForm.images : [];
+    if (images.length === 0) {
+      setError("Please attach at least one product image.");
+      return;
+    }
+    setSavingEdit(true);
+    setError("");
+    try {
+      const res = await fetch(`/api/admin/products/${editProduct._id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: editForm.name,
+          price: Number(editForm.price),
+          category: editForm.category,
+          description: editForm.description,
+          image: images[0],
+          images,
+          inStock: Boolean(editForm.inStock),
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Failed to update product");
+      setEditProduct(null);
+      await loadData();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Update failed");
+    } finally {
+      setSavingEdit(false);
     }
   };
 
@@ -358,6 +527,20 @@ export default function AdminPage() {
               onChange={(e) => setProductForm((prev) => ({ ...prev, category: e.target.value }))}
               required
             />
+            <textarea
+              placeholder="Description (optional)"
+              value={productForm.description}
+              onChange={(e) => setProductForm((prev) => ({ ...prev, description: e.target.value }))}
+              rows={3}
+            />
+            <label className="checkbox-row">
+              <input
+                type="checkbox"
+                checked={productForm.inStock}
+                onChange={(e) => setProductForm((prev) => ({ ...prev, inStock: e.target.checked }))}
+              />
+              In stock
+            </label>
             <input
               type="file"
               accept="image/*"
@@ -366,9 +549,31 @@ export default function AdminPage() {
               required={!productForm.image}
             />
             {uploadingImage ? <p className="muted">Uploading image...</p> : null}
-            {productForm.image ? <p className="muted">Image attached: {productForm.image}</p> : null}
-            {productForm.images.length > 1 ? (
-              <p className="muted">Total product images: {productForm.images.length}</p>
+            <textarea
+              placeholder="Image URLs (one per line)"
+              value={productImageUrls}
+              onChange={(e) => setProductImageUrls(e.target.value)}
+              rows={3}
+            />
+            <button type="button" onClick={addProductImageUrls}>
+              Add Image URLs
+            </button>
+            {productForm.images.length > 0 ? (
+              <div className="image-list">
+                {productForm.images.map((url, index) => (
+                  <div className="image-chip" key={`${url}-${index}`}>
+                    <span title={url}>{url}</span>
+                    <button
+                      type="button"
+                      className="chip-remove"
+                      onClick={() => removeProductImage(index)}
+                      aria-label="Remove image"
+                    >
+                      {"Ã—"}
+                    </button>
+                  </div>
+                ))}
+              </div>
             ) : null}
             <button className="btn-primary" type="submit" disabled={saving}>
               {saving ? "Saving..." : "Add Product"}
@@ -382,9 +587,13 @@ export default function AdminPage() {
                 <div>
                   <p><strong>{product.name}</strong></p>
                   <p>{product.category} | Rs. {Number(product.price).toLocaleString()}</p>
+                  <p className={product.inStock === false ? "muted out-stock" : "muted"}>
+                    {product.inStock === false ? "Out of stock" : "In stock"}
+                  </p>
                   <p className="muted">Images: {product.images?.length || 1}</p>
                 </div>
                 <div className="btn-group">
+                  <button onClick={() => openEditProduct(product)}>Edit</button>
                   <button onClick={() => deleteProduct(product._id)}>Delete</button>
                 </div>
               </article>
@@ -517,6 +726,90 @@ export default function AdminPage() {
           </div>
         </div>
       </div>
+
+      {editProduct ? (
+        <div className="modal-backdrop" onClick={closeEditProduct}>
+          <div className="modal-card" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-head">
+              <h3>Edit Product</h3>
+              <button className="modal-close" onClick={closeEditProduct} aria-label="Close">
+                {"x"}
+              </button>
+            </div>
+            <form className="checkout-form" onSubmit={saveEditProduct}>
+              <input
+                placeholder="Name"
+                value={editForm.name}
+                onChange={(e) => setEditForm((prev) => ({ ...prev, name: e.target.value }))}
+                required
+              />
+              <input
+                placeholder="Price (PKR)"
+                type="number"
+                value={editForm.price}
+                onChange={(e) => setEditForm((prev) => ({ ...prev, price: e.target.value }))}
+                required
+              />
+              <input
+                placeholder="Category"
+                value={editForm.category}
+                onChange={(e) => setEditForm((prev) => ({ ...prev, category: e.target.value }))}
+                required
+              />
+              <textarea
+                placeholder="Description (optional)"
+                value={editForm.description}
+                onChange={(e) => setEditForm((prev) => ({ ...prev, description: e.target.value }))}
+                rows={3}
+              />
+              <label className="checkbox-row">
+                <input
+                  type="checkbox"
+                  checked={editForm.inStock}
+                  onChange={(e) => setEditForm((prev) => ({ ...prev, inStock: e.target.checked }))}
+                />
+                In stock
+              </label>
+              <input
+                type="file"
+                accept="image/*"
+                multiple
+                onChange={(e) => onEditImageSelect(e.target.files)}
+              />
+              {uploadingEditImage ? <p className="muted">Uploading image...</p> : null}
+              <textarea
+                placeholder="Image URLs (one per line)"
+                value={editImageUrls}
+                onChange={(e) => setEditImageUrls(e.target.value)}
+                rows={3}
+              />
+              <button type="button" onClick={addEditImageUrls}>
+                Add Image URLs
+              </button>
+              {editForm.images.length > 0 ? (
+                <div className="image-list">
+                  {editForm.images.map((url, index) => (
+                    <div className="image-chip" key={`${url}-${index}`}>
+                      <span title={url}>{url}</span>
+                      <button
+                        type="button"
+                        className="chip-remove"
+                        onClick={() => removeEditImage(index)}
+                        aria-label="Remove image"
+                      >
+                        {"x"}
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              ) : null}
+              <button className="btn-primary" type="submit" disabled={savingEdit}>
+                {savingEdit ? "Saving..." : "Save Changes"}
+              </button>
+            </form>
+          </div>
+        </div>
+      ) : null}
     </section>
   );
 }

@@ -45,6 +45,8 @@ export default function ProductsPage() {
             category: itemCategory,
             image: primaryImage,
             images: normalizedImages.length > 0 ? normalizedImages : [primaryImage],
+            description: typeof item.description === "string" ? item.description : undefined,
+            inStock: typeof item.inStock === "boolean" ? item.inStock : true,
           };
         });
         if (normalized.length > 0) setProducts(normalized);

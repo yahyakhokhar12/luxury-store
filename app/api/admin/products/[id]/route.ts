@@ -20,6 +20,7 @@ export async function PATCH(
       {
         ...(typeof body.name === "string" ? { name: body.name } : {}),
         ...(typeof body.category === "string" ? { category: body.category } : {}),
+        ...(typeof body.description === "string" ? { description: body.description } : {}),
         ...(typeof body.image === "string" ? { image: body.image } : {}),
         ...(Array.isArray(body.images)
           ? {
@@ -30,6 +31,7 @@ export async function PATCH(
             }
           : {}),
         ...(body.price !== undefined ? { price: Number(body.price) } : {}),
+        ...(typeof body.inStock === "boolean" ? { inStock: body.inStock } : {}),
         ...(typeof body.newArrival === "boolean" ? { newArrival: body.newArrival } : {}),
       },
       { new: true }

@@ -1,11 +1,11 @@
-"use client";
+﻿"use client";
 
 import { motion } from "framer-motion";
 import Image from "next/image";
-import { useEffect, useMemo, useRef, useState } from "react";
-import { useAuth } from "./AuthContext";
-import { useCart } from "./CartContext";
-import { useWishlist, type Product } from "./WishlistContext";
+import { useEffect, useMemo, useState } from "react";
+import { useAuth } from "@/components/AuthContext";
+import { useCart } from "@/components/CartContext";
+import { useWishlist, type Product } from "@/components/WishlistContext";
 
 type PaymentMethod = "raast" | "cod";
 
@@ -28,22 +28,23 @@ const emptyCustomer: CustomerForm = {
   address: { line1: "", city: "", province: "", postalCode: "" },
 };
 
-const SWIPE_THRESHOLD = 35;
-
 export default function ProductCard({ product }: { product: Product }) {
+  if (!product) return null;
   const { user } = useAuth();
   const { addToCart } = useCart();
   const { wishlist, toggleWishlist } = useWishlist();
   const isLiked = wishlist.some((item) => item.id === product.id);
+  const isOutOfStock = product.inStock === false;
 
   const [showBuyModal, setShowBuyModal] = useState(false);
+  const [showQuickView, setShowQuickView] = useState(false);
+  const [showImageZoom, setShowImageZoom] = useState(false);
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>("raast");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
   const [customer, setCustomer] = useState<CustomerForm>(emptyCustomer);
   const [activeImage, setActiveImage] = useState(0);
-  const pointerStartX = useRef<number | null>(null);
   const productImages = useMemo(() => {
     const fromProduct = Array.isArray(product.images)
       ? product.images.filter((img) => typeof img === "string" && img.trim().length > 0)
@@ -51,6 +52,12 @@ export default function ProductCard({ product }: { product: Product }) {
     return fromProduct.length > 0 ? fromProduct : [product.image];
   }, [product.image, product.images]);
   const hasMultiImages = productImages.length > 1;
+  const productDescription = useMemo(() => {
+    const trimmed = typeof product.description === "string" ? product.description.trim() : "";
+    if (trimmed) return trimmed;
+    const category = product.category || "Ready To Wear";
+    return `${category} edit crafted for comfort, with breathable fabric and a refined finish.`;
+  }, [product.category, product.description]);
 
   useEffect(() => {
     if (!user) return;
@@ -81,16 +88,21 @@ export default function ProductCard({ product }: { product: Product }) {
     setActiveImage((prev) => (prev - 1 + productImages.length) % productImages.length);
   };
 
-  const onPointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
-    pointerStartX.current = e.clientX;
+  const openQuickView = () => {
+    setActiveImage(0);
+    setShowQuickView(true);
   };
 
-  const onPointerUp = (e: React.PointerEvent<HTMLDivElement>) => {
-    if (!hasMultiImages || pointerStartX.current === null) return;
-    const deltaX = e.clientX - pointerStartX.current;
-    if (deltaX <= -SWIPE_THRESHOLD) showNextImage();
-    if (deltaX >= SWIPE_THRESHOLD) showPrevImage();
-    pointerStartX.current = null;
+  const closeQuickView = () => {
+    setShowQuickView(false);
+  };
+
+  const openImageZoom = () => {
+    setShowImageZoom(true);
+  };
+
+  const closeImageZoom = () => {
+    setShowImageZoom(false);
   };
 
   const validateCustomer = () => {
@@ -158,52 +170,41 @@ export default function ProductCard({ product }: { product: Product }) {
   return (
     <>
       <motion.article className="card product-card" whileHover={{ y: -6, scale: 1.01 }}>
-        <div className="product-media" onPointerDown={onPointerDown} onPointerUp={onPointerUp}>
-          <Image src={productImages[activeImage]} alt={product.name} width={400} height={280} />
-          {hasMultiImages ? (
-            <>
-              <button
-                type="button"
-                className="media-nav media-prev"
-                onClick={showPrevImage}
-                aria-label="Previous image"
-              >
-                ‹
-              </button>
-              <button
-                type="button"
-                className="media-nav media-next"
-                onClick={showNextImage}
-                aria-label="Next image"
-              >
-                ›
-              </button>
-              <div className="media-dots">
-                {productImages.map((_, index) => (
-                  <button
-                    key={`${product.id}-dot-${index}`}
-                    type="button"
-                    className={`media-dot ${index === activeImage ? "is-active" : ""}`}
-                    onClick={() => setActiveImage(index)}
-                    aria-label={`Show image ${index + 1}`}
-                  />
-                ))}
-              </div>
-            </>
-          ) : null}
+        <div
+          className="product-media"
+          onClick={openQuickView}
+          role="button"
+          tabIndex={0}
+          onKeyDown={(e) => (e.key === "Enter" ? openQuickView() : null)}
+          aria-label={`Open ${product.name} preview`}
+        >
+          <Image
+            src={productImages[0]}
+            alt={product.name}
+            fill
+            sizes="(max-width: 680px) 90vw, 400px"
+            style={{ objectFit: "contain" }}
+          />
         </div>
         <p className="product-category">{product.category || "Ready To Wear"}</p>
         <h3>{product.name}</h3>
         <p className="price">Rs. {product.price.toLocaleString()}</p>
+        {isOutOfStock ? <p className="out-stock">Out of stock</p> : null}
 
         <div className="btn-group">
-          <button className="btn-primary icon-text-btn" onClick={() => addToCart(product)}>
+          <button
+            className="btn-primary icon-text-btn"
+            onClick={() => addToCart(product)}
+            disabled={isOutOfStock}
+          >
             <svg viewBox="0 0 24 24" aria-hidden="true">
               <path d="M8 20a1.5 1.5 0 1 0 0 3 1.5 1.5 0 0 0 0-3Zm9 0a1.5 1.5 0 1 0 0 3 1.5 1.5 0 0 0 0-3ZM5.2 4l1.2 8.4a2 2 0 0 0 2 1.6h7.9a2 2 0 0 0 1.9-1.4l1.7-5.5a1 1 0 0 0-1-.9H7.1L6.8 4.5A1.5 1.5 0 0 0 5.3 3H3a1 1 0 1 0 0 2h2.2Z" />
             </svg>
             Add to Cart
           </button>
-          <button onClick={() => setShowBuyModal(true)}>Buy Now</button>
+          <button onClick={() => setShowBuyModal(true)} disabled={isOutOfStock}>
+            Buy Now
+          </button>
           <button className="icon-text-btn" onClick={() => toggleWishlist(product)}>
             <svg viewBox="0 0 24 24" aria-hidden="true">
               <path d="M12 20.3 4.7 13a4.9 4.9 0 0 1 6.9-6.9L12 6.5l.4-.4A4.9 4.9 0 1 1 19.3 13L12 20.3Z" />
@@ -212,6 +213,97 @@ export default function ProductCard({ product }: { product: Product }) {
           </button>
         </div>
       </motion.article>
+
+      {showQuickView ? (
+        <div className="modal-backdrop" onClick={closeQuickView}>
+          <div className="modal-card modal-card-lg" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-head modal-head-slim">
+              <button
+                className="modal-close"
+                onClick={closeQuickView}
+                aria-label="Close"
+              >
+                {"×"}
+              </button>
+            </div>
+
+            <div className="quickview-grid">
+              <div className="quickview-media">
+                <div className="quickview-main zoomable" onClick={openImageZoom}>
+                  <Image
+                    src={productImages[activeImage]}
+                    alt={product.name}
+                    fill
+                    sizes="(max-width: 900px) 92vw, 520px"
+                    style={{ objectFit: "contain" }}
+                  />
+                  {hasMultiImages ? (
+                    <>
+                      <button
+                        type="button"
+                        className="media-nav media-prev"
+                        onClick={showPrevImage}
+                        aria-label="Previous image"
+                      >
+                        {"<"}
+                      </button>
+                      <button
+                        type="button"
+                        className="media-nav media-next"
+                        onClick={showNextImage}
+                        aria-label="Next image"
+                      >
+                        {">"}
+                      </button>
+                      <div className="media-dots quickview-dots">
+                        {productImages.map((_, index) => (
+                          <button
+                            key={`${product.id}-qv-dot-${index}`}
+                            type="button"
+                            className={`media-dot ${index === activeImage ? "is-active" : ""}`}
+                            onClick={() => setActiveImage(index)}
+                            aria-label={`Show image ${index + 1}`}
+                          />
+                        ))}
+                      </div>
+                    </>
+                  ) : null}
+                </div>
+
+                {hasMultiImages ? (
+                  <div className="quickview-thumbs">
+                    {productImages.map((img, index) => (
+                      <button
+                        key={`${product.id}-thumb-${index}`}
+                        type="button"
+                        className={`quickview-thumb ${index === activeImage ? "is-active" : ""}`}
+                        onClick={() => setActiveImage(index)}
+                        aria-label={`Show image ${index + 1}`}
+                      >
+                        <Image
+                          src={img}
+                          alt={`${product.name} thumbnail ${index + 1}`}
+                          width={72}
+                          height={72}
+                        />
+                      </button>
+                    ))}
+                  </div>
+                ) : null}
+              </div>
+
+              <div className="quickview-meta">
+                <p className="product-category">{product.category || "Ready To Wear"}</p>
+                <h4>{product.name}</h4>
+                <p className="price">Rs. {product.price.toLocaleString()}</p>
+                {isOutOfStock ? <p className="out-stock">Out of stock</p> : null}
+                <p className="muted">{productDescription}</p>
+
+              </div>
+            </div>
+          </div>
+        </div>
+      ) : null}
 
       {showBuyModal ? (
         <div className="modal-backdrop" onClick={() => setShowBuyModal(false)}>
@@ -309,6 +401,27 @@ export default function ProductCard({ product }: { product: Product }) {
                 {loading ? "Processing..." : "Confirm Order"}
               </button>
             </div>
+          </div>
+        </div>
+      ) : null}
+
+      {showImageZoom ? (
+        <div className="modal-backdrop image-zoom" onClick={closeImageZoom}>
+          <div className="zoom-card" onClick={(e) => e.stopPropagation()}>
+            <Image
+              src={productImages[activeImage]}
+              alt={product.name}
+              fill
+              sizes="90vw"
+              style={{ objectFit: "contain" }}
+            />
+            <button
+              className="modal-close zoom-close"
+              onClick={closeImageZoom}
+              aria-label="Close"
+            >
+              {"×"}
+            </button>
           </div>
         </div>
       ) : null}
