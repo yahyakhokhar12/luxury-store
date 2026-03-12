@@ -5,7 +5,6 @@ import { useRouter } from "next/navigation";
 import { useAuth } from "@/components/AuthContext";
 import { useCart } from "@/components/CartContext";
 import { useWishlist } from "@/components/WishlistContext";
-import ThemeToggle from "./ThemeToggle";
 
 export default function Navbar() {
   const router = useRouter();
@@ -52,15 +51,35 @@ export default function Navbar() {
       </nav>
 
       <div className="nav-actions">
-        {!loading && !user ? <Link href="/auth">Login</Link> : null}
+        {!loading && !user ? (
+          <Link className="icon-link" href="/auth" aria-label="Login">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <circle cx="12" cy="8" r="4" />
+              <path d="M4 20c1.8-3.5 5-5 8-5s6.2 1.5 8 5" />
+            </svg>
+          </Link>
+        ) : null}
         {!loading && user ? (
           <>
             <span className="user-pill">{user.name || user.email}</span>
-            {user.isAdmin ? <Link href="/admin">Admin</Link> : null}
-            <button onClick={handleLogout}>Logout</button>
+            {user.isAdmin ? (
+              <Link className="icon-link" href="/admin" aria-label="Admin">
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="M19.4 15a1.7 1.7 0 0 0 .3 1.9l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.9-.3 1.7 1.7 0 0 0-1 1.6V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1-1.6 1.7 1.7 0 0 0-1.9.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.9 1.7 1.7 0 0 0-1.6-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.6-1 1.7 1.7 0 0 0-.3-1.9l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.9.3 1.7 1.7 0 0 0 1-1.6V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.6 1.7 1.7 0 0 0 1.9-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.9 1.7 1.7 0 0 0 1.6 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.6 1Z" />
+                  <circle cx="12" cy="10.8" r="2.4" />
+                  <path d="M8.5 16.6c1-1.5 2.1-2.2 3.5-2.2s2.5.7 3.5 2.2" />
+                </svg>
+              </Link>
+            ) : null}
+            <button className="icon-link" onClick={handleLogout} aria-label="Logout">
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M9 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h3" />
+                <path d="M14 7l5 5-5 5" />
+                <path d="M19 12H9" />
+              </svg>
+            </button>
           </>
         ) : null}
-        <ThemeToggle />
       </div>
     </header>
   );
